@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-
 func ToStringByPrecise(bigNum *big.Int, decimals uint64) string {
 	result := ""
 	destStr := bigNum.String()
