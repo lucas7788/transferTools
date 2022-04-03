@@ -1,0 +1,11 @@
+{
+  "walletFile": "./wallet.dat",
+  "password": "111111",
+  "address": "AY18Azi35MLDpCUeKeTtSmNPZH38HaBJgH",
+  "excelFile": "./template.xlsx",
+  "contractAddress": "0200000000000000000000000000000000000000",
+  "rpcUrl": "http://polaris2.ont.io:20336",
+  "gasPrice": 2500,
+  "gasLimit": 4000000,
+  "execute": false
+}
