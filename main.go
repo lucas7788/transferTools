@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"github.com/laizy/web3"
 	ontology_go_sdk "github.com/ontio/ontology-go-sdk"
-	common3 "github.com/ontio/ontology-go-sdk/common"
+	//common3 "github.com/ontio/ontology-go-sdk/common"
 	common2 "github.com/ontio/ontology/common"
+	"github.com/ontio/ontology/smartcontract/service/native/ont"
 	"github.com/transerTools/common"
 	"github.com/transerTools/config"
 	"github.com/transerTools/utils"
@@ -53,7 +54,7 @@ func main() {
 		}()
 	}
 	if cf.Execute {
-		states := make([]*common3.TransferState, 0)
+		states := make([]*ont.State, 0)
 		end := len(toInfos)
 		for k, toInfo := range toInfos {
 			if len(states) >= 20 || k == end-1 {
@@ -63,9 +64,9 @@ func main() {
 					w.Write([]byte("\n"))
 				}
 				common.CheckErr(err)
-				states = make([]*common3.TransferState, 0)
+				states = make([]*ont.State, 0)
 			} else {
-				state := &common3.TransferState{
+				state := &ont.State{
 					From:  admin.Address,
 					To:    toInfo.To,
 					Value: toInfo.Amount.Uint64(),
