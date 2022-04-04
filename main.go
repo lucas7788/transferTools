@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"github.com/laizy/web3"
 	ontology_go_sdk "github.com/ontio/ontology-go-sdk"
+	"strings"
+
 	//common3 "github.com/ontio/ontology-go-sdk/common"
 	common2 "github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/smartcontract/service/native/ont"
@@ -15,7 +17,6 @@ import (
 	"github.com/xuri/excelize/v2"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -83,19 +84,26 @@ func parseExcel(cf *config.Config) ([]*config.ToInfo, uint64) {
 	// 获取 Sheet1 上所有单元格
 	rows, err := f.GetRows("Sheet1")
 	common.CheckErr(err)
-	counter := 0
 	var toInfos = make([]*config.ToInfo, 0)
+	var isBase58 bool
 	for i := 1; i < len(rows); i++ {
-		counter++
 		if rows[i][0] == "" {
 			break
 		}
-		if !strings.HasPrefix(rows[i][0], "0x") {
-			rows[i][0] = "0x" + rows[i][0]
+		var to common2.Address
+		to, err := common2.AddressFromBase58(rows[i][0])
+		if err != nil {
+			if !strings.HasPrefix(rows[i][0], "0x") {
+				rows[i][0] = "0x" + rows[i][0]
+			}
+			ethAdr := web3.HexToAddress(rows[i][0])
+			to = common2.Address(ethAdr)
+			isBase58 = false
+		} else {
+			isBase58 = true
 		}
-		to := web3.HexToAddress(rows[i][0])
 		toInfos = append(toInfos, &config.ToInfo{
-			To:     common2.Address(to),
+			To:     to,
 			Amount: utils.ToIntByPrecise(rows[i][1], 9),
 		})
 	}
@@ -103,9 +111,16 @@ func parseExcel(cf *config.Config) ([]*config.ToInfo, uint64) {
 	if !cf.Execute {
 		for _, toInfo := range toInfos {
 			sum += toInfo.Amount.Uint64()
-			fmt.Println("to:", hex.EncodeToString(toInfo.To[:]), "amount:", toInfo.Amount.String())
+			if isBase58 {
+				fmt.Println("to:", toInfo.To.ToBase58(), "amount:", toInfo.Amount.String())
+			} else {
+				fmt.Println("to:", "0x"+hex.EncodeToString(toInfo.To[:]), "amount:", toInfo.Amount.String())
+			}
 		}
 	}
-	txNums := len(toInfos)/20*12/100 + 1
-	return toInfos, sum + uint64(txNums)
+	fee := (len(toInfos)/20)*12/100 + 1
+	if !cf.Execute {
+		fmt.Println("estimate tx fee is: ", fee)
+	}
+	return toInfos, sum + uint64(fee)
 }
