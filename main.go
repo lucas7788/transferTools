@@ -71,6 +71,12 @@ func transfer(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk, ad
 		states := make([]*ont.State, 0)
 		end := len(toInfos)
 		for k, toInfo := range toInfos {
+			state := &ont.State{
+				From:  admin.Address,
+				To:    toInfo.To,
+				Value: toInfo.Amount.Uint64(),
+			}
+			states = append(states, state)
 			if len(states) >= 20 || k == end-1 {
 				var err error
 				var tx *types.MutableTransaction
@@ -93,13 +99,6 @@ func transfer(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk, ad
 				_, err = sdk.SendTransaction(tx)
 				common.CheckErr(err)
 				states = make([]*ont.State, 0)
-			} else {
-				state := &ont.State{
-					From:  admin.Address,
-					To:    toInfo.To,
-					Value: toInfo.Amount.Uint64(),
-				}
-				states = append(states, state)
 			}
 		}
 	} else {
@@ -135,34 +134,51 @@ func transfer(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk, ad
 func checkBalance(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk, admin common2.Address,
 	sum *big.Int, fee uint64) {
 
+	var decimals uint64
 	if contractAddr == ontology_go_sdk.ONG_CONTRACT_ADDRESS {
 		bal, err := sdk.Native.Ong.BalanceOf(admin)
 		common.CheckErr(err)
 		if bal < sum.Uint64()+fee {
-			panic("ONG: Insufficient balance")
+			fmt.Println("ONG: Insufficient balance")
+			fmt.Println("ONG Bal:", utils.ToStringByPrecise(big.NewInt(int64(bal)), 9))
+			return
 		}
+		decimals = 9
 	} else if contractAddr == ontology_go_sdk.ONT_CONTRACT_ADDRESS {
 		bal, err := sdk.Native.Ont.BalanceOf(admin)
 		common.CheckErr(err)
 		if bal < sum.Uint64() {
-			panic("ONT: Insufficient balance")
+			fmt.Println("ONT: Insufficient balance")
+			fmt.Println("ONT Bal:", bal, "Sum:", sum)
+			return
 		}
 		bal, err = sdk.Native.Ong.BalanceOf(admin)
 		common.CheckErr(err)
 		if bal < fee {
-			panic("ONG: Insufficient balance")
+			fmt.Println("ONG: Insufficient balance")
+			fmt.Println("ONG Bal:", utils.ToStringByPrecise(big.NewInt(int64(bal)), 9), "Fee:",
+				utils.ToStringByPrecise(big.NewInt(int64(fee)), 9))
+			return
 		}
+		decimals = 0
 	} else {
 		oep4Token := oep4.NewOep4(contractAddr, sdk)
 		bal, err := oep4Token.BalanceOf(admin)
 		common.CheckErr(err)
+		dec, err := oep4Token.Decimals()
+		common.CheckErr(err)
+		decimals = dec.Uint64()
 		if bal.Cmp(sum) < 0 {
-			panic("OEP4: Insufficient balance")
+			fmt.Println("OEP4: Insufficient balance")
+			fmt.Println("oep4 Bal:", bal.String(), "sum:", utils.ToStringByPrecise(sum, decimals))
+			return
 		}
 		ongBal, err := sdk.Native.Ong.BalanceOf(admin)
 		common.CheckErr(err)
 		if ongBal < fee {
-			panic("ONG: Insufficient balance")
+			fmt.Println("ONG: Insufficient balance")
+			fmt.Println("ongBal:", ongBal, "fee:", fee)
+			return
 		}
 	}
 }
@@ -186,7 +202,7 @@ func parseExcel(cf *config.Config, decimals uint64) ([]*config.ToInfo, *big.Int,
 	f, err := excelize.OpenFile(cf.ExcelFile)
 	common.CheckErr(err)
 	// 获取 Sheet1 上所有单元格
-	rows, err := f.GetRows("Sheet1")
+	rows, err := f.GetRows("SheetJS")
 	common.CheckErr(err)
 	var toInfos = make([]*config.ToInfo, 0)
 	var isBase58 bool
