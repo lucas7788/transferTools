@@ -105,6 +105,8 @@ func transfer(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk, ad
 		oep4States := make([][]interface{}, 0)
 		end := len(toInfos)
 		for k, toInfo := range toInfos {
+			state := []interface{}{admin.Address, toInfo.To, toInfo.Amount}
+			oep4States = append(oep4States, state)
 			if len(oep4States) >= 20 || k == end-1 {
 				var txHash common2.Uint256
 				var err error
@@ -123,9 +125,6 @@ func transfer(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk, ad
 				txHash, err = sdk.SendTransaction(mutableTx)
 				common.CheckErr(err)
 				oep4States = make([][]interface{}, 0)
-			} else {
-				state := []interface{}{admin.Address, toInfo.To, toInfo.Amount}
-				oep4States = append(oep4States, state)
 			}
 		}
 	}
@@ -140,7 +139,8 @@ func checkBalance(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk
 		common.CheckErr(err)
 		if bal < sum.Uint64()+fee {
 			fmt.Println("ONG: Insufficient balance")
-			fmt.Println("ONG Bal:", utils.ToStringByPrecise(big.NewInt(int64(bal)), 9))
+			fmt.Println("ONG Bal:", utils.ToStringByPrecise(big.NewInt(int64(bal)), 9),
+				"expect:", utils.ToStringByPrecise(big.NewInt(int64(sum.Uint64()+fee)), 9))
 			return
 		}
 		decimals = 9
