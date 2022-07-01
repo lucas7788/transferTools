@@ -28,6 +28,14 @@ func main() {
 	sdk := ontology_go_sdk.NewOntologySdk()
 	sdk.NewRpcClient().SetAddress(cf.RpcUrl)
 
+	if len(os.Args) >= 2 && os.Args[1] == "1" {
+		wall, err := sdk.CreateWallet(cf.WalletFile)
+		common.CheckErr(err)
+		acc, err := wall.NewDefaultSettingAccount([]byte(cf.Password))
+		common.CheckErr(err)
+		fmt.Println("Address:", acc.Address.ToBase58())
+		return
+	}
 	wall, err := sdk.OpenWallet(cf.WalletFile)
 	common.CheckErr(err)
 	admin, err := wall.GetAccountByAddress(cf.Address, []byte(cf.Password))
