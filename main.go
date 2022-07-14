@@ -34,6 +34,7 @@ func main() {
 		acc, err := wall.NewDefaultSettingAccount([]byte(cf.Password))
 		common.CheckErr(err)
 		fmt.Println("Address:", acc.Address.ToBase58())
+		wall.Save()
 		return
 	}
 	wall, err := sdk.OpenWallet(cf.WalletFile)
