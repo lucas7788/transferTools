@@ -92,50 +92,6 @@ var tokenToOntSwapOutputCmd = &cli.Command{
 	},
 }
 
-//var tokenToTokenSwapInputCmd = &cli.Command{
-//	Name:   "tokenToTokenSwapInput",
-//	Action: tokenToTokenSwapInput,
-//	Flags: []cli.Flag{
-//		OntdAmountFlag,
-//		TokensBoughtFlag,
-//	},
-//}
-//
-//func tokenToTokenSwapInput(ctx *cli.Context) error {
-//	sdk := initSdk()
-//	if sdk == nil {
-//		return nil
-//	}
-//	signer := initAccount(ctx, sdk)
-//	if signer == nil {
-//		return nil
-//	}
-//	contractAddress, _ := getContractAddress(ctx)
-//	tokenDecimal := getTokenDecimal(getTokenAddress(sdk, contractAddress), sdk)
-//	tokensSold := getAmount(ctx, TokensSoldFlag.Name, tokenDecimal)
-//	minTokensBought := getAmount(ctx, MinTokensBoughtFlag.Name, tokenDecimal)
-//
-//	deadline := time.Now().Unix() + 1000
-//	pre := ctx.Bool(PreFlag.Name)
-//	if pre {
-//		res, err := sdk.NeoVM.PreExecInvokeNeoVMContract(contractAddress,
-//			[]interface{}{"tokenToOntSwapOutput",
-//				[]interface{}{ontdBought, maxTokens, deadline, signer.Address}})
-//		common.CheckErr(err)
-//		arr, err := res.Result.ToInteger()
-//		log.Infof("ontdBought: %s", utils.ToStringByPrecise(arr, 9))
-//	} else {
-//		txHash, err := sdk.NeoVM.InvokeNeoVMContract(2500, 6000000, signer, contractAddress,
-//			[]interface{}{"tokenToOntSwapOutput",
-//				[]interface{}{ontdBought, maxTokens, deadline, signer.Address}})
-//		common.CheckErr(err)
-//		log.Infof("tokenToOntSwapOutput txHash: %s", txHash.ToHexString())
-//		sdk.WaitForGenerateBlock(time.Second*30, 1)
-//		showLp(sdk, signer.Address, contractAddress)
-//	}
-//	return nil
-//}
-
 func getAmount(ctx *cli.Context, name string, decimals uint64) *big.Int {
 	amtStr := ctx.String(name) // lp的数量
 	return utils.ToIntByPrecise(amtStr, decimals)
@@ -222,7 +178,7 @@ func getContractAddress(ctx *cli.Context) (common2.Address, string) {
 		fmt.Println("contractAddress:", contractAddress.ToHexString())
 		return contractAddress, name
 	} else if name == "ONG" {
-		var contractAddress, _ = common2.AddressFromHexString("969c9028bb048c4e1c2120129bc488bf8b5ad41b")
+		var contractAddress, _ = common2.AddressFromHexString("df9ae7ebe964e8ad7663ec8eff55ce43ffc18fa6")
 		fmt.Println("contractAddress:", contractAddress.ToHexString())
 		return contractAddress, name
 	} else {
@@ -248,7 +204,12 @@ func ontToTokenSwapOutput(ctx *cli.Context) error {
 	tokensBought := utils.ToIntByPrecise(tokensBoughtStr, tokenDecimal)
 	deadline := time.Now().Unix() + 1000
 	pre := ctx.Bool(PreFlag.Name)
-	approveOntd(sdk, signer, contractAddress, ontdAmount)
+	if name == "ONG" {
+		approveOnt(sdk, signer, contractAddress, ontdAmount)
+	} else {
+		ontd, _ := common2.AddressFromHexString(ONTD)
+		approveOep4(sdk, signer, contractAddress, ontdAmount, ontd)
+	}
 	if pre {
 		res, err := sdk.NeoVM.PreExecInvokeNeoVMContract(contractAddress,
 			[]interface{}{"ontToTokenSwapOutput", []interface{}{tokensBought, deadline, signer.Address, ontdAmount}})
@@ -279,7 +240,7 @@ func ontToTokenSwapInput(ctx *cli.Context) error {
 		return nil
 	}
 
-	contractAddress, _ := getContractAddress(ctx)
+	contractAddress, tokenName := getContractAddress(ctx)
 	amtStr := ctx.String(OntdAmountFlag.Name) // lp的数量
 	ontdAmount := utils.ToIntByPrecise(amtStr, 9)
 	minTokensStr := ctx.String(MinTokensFlag.Name)
@@ -287,7 +248,12 @@ func ontToTokenSwapInput(ctx *cli.Context) error {
 	minTokens := utils.ToIntByPrecise(minTokensStr, tokenDecimal)
 	deadline := time.Now().Unix() + 1000
 	pre := ctx.Bool(PreFlag.Name)
-	approveOntd(sdk, signer, contractAddress, ontdAmount)
+	if tokenName == "ONG" {
+		approveOnt(sdk, signer, contractAddress, ontdAmount)
+	} else {
+		ontdAddr, _ := common2.AddressFromHexString(ONTD)
+		approveOep4(sdk, signer, contractAddress, ontdAmount, ontdAddr)
+	}
 	if pre {
 		res, err := sdk.NeoVM.PreExecInvokeNeoVMContract(contractAddress,
 			[]interface{}{"ontToTokenSwapInput", []interface{}{minTokens, deadline, signer.Address, ontdAmount}})
@@ -307,10 +273,9 @@ func ontToTokenSwapInput(ctx *cli.Context) error {
 	return nil
 }
 
-func approveOntd(sdk *ontology_go_sdk.OntologySdk, signer *ontology_go_sdk.Account,
-	spender common2.Address, amt *big.Int) {
-	ontdAddr, _ := common2.AddressFromHexString(ONTD)
-	all, err := sdk.NeoVM.PreExecInvokeNeoVMContract(ontdAddr,
+func approveOep4(sdk *ontology_go_sdk.OntologySdk, signer *ontology_go_sdk.Account,
+	spender common2.Address, amt *big.Int, tokenAddress common2.Address) {
+	all, err := sdk.NeoVM.PreExecInvokeNeoVMContract(tokenAddress,
 		[]interface{}{"allowance", []interface{}{signer.Address, spender}})
 	if err != nil {
 		panic(err)
@@ -318,7 +283,7 @@ func approveOntd(sdk *ontology_go_sdk.OntologySdk, signer *ontology_go_sdk.Accou
 	al, err := all.Result.ToInteger()
 	common.CheckErr(err)
 	if al.Cmp(amt) <= 0 {
-		ontd := oep4.NewOep4(ontdAddr, sdk)
+		ontd := oep4.NewOep4(tokenAddress, sdk)
 		bal, err := ontd.BalanceOf(signer.Address)
 		common.CheckErr(err)
 		txHash, err := ontd.Approve(signer, spender, bal, 2500, 30000)
@@ -338,6 +303,21 @@ func approveOng(sdk *ontology_go_sdk.OntologySdk, signer *ontology_go_sdk.Accoun
 		bal, err := sdk.Native.Ong.BalanceOf(signer.Address)
 		common.CheckErr(err)
 		txHash, err := sdk.Native.Ong.Approve(2500, 30000, signer, spender, bal)
+		common.CheckErr(err)
+		fmt.Println("approveTxHash:", txHash.ToHexString())
+		sdk.WaitForGenerateBlock(time.Second*30, 1)
+	}
+}
+func approveOnt(sdk *ontology_go_sdk.OntologySdk, signer *ontology_go_sdk.Account,
+	spender common2.Address, amt *big.Int) {
+	all, err := sdk.Native.Ont.Allowance(signer.Address, spender)
+	if err != nil {
+		panic(err)
+	}
+	if all < amt.Uint64() {
+		bal, err := sdk.Native.Ont.BalanceOf(signer.Address)
+		common.CheckErr(err)
+		txHash, err := sdk.Native.Ont.Approve(2500, 30000, signer, spender, bal)
 		common.CheckErr(err)
 		fmt.Println("approveTxHash:", txHash.ToHexString())
 		sdk.WaitForGenerateBlock(time.Second*30, 1)
@@ -389,13 +369,12 @@ func removeLiquidity(ctx *cli.Context) error {
 
 func getTokenDecimal(adr common2.Address, sdk *ontology_go_sdk.OntologySdk) uint64 {
 	if adr == ontology_go_sdk.ONG_CONTRACT_ADDRESS {
-		return 9
+		return 18
 	} else {
-		fmt.Println("adr:", adr.ToHexString())
 		o4 := oep4.NewOep4(adr, sdk)
 		d, err := o4.Decimals()
 		common.CheckErr(err)
-		fmt.Println("adr:", adr.ToHexString(), "decimals:", d.Uint64())
+		fmt.Println("contractAddress:", adr.ToHexString(), "decimals:", d.Uint64())
 		return d.Uint64()
 	}
 }
@@ -510,36 +489,11 @@ func addLiquidity(ctx *cli.Context) error {
 	depositOntdAmtStr := ctx.String(DepositOntdAmtFlag.Name)
 	depositOntdAmt := utils.ToIntByPrecise(depositOntdAmtStr, 9)
 
-	var approveTxHash common2.Uint256
 	if tokenAddress == ontology_go_sdk.ONG_CONTRACT_ADDRESS {
-		all, err := sdk.Native.Ong.Allowance(signer.Address, contractAddress)
-		common.CheckErr(err)
-		if maxToken.Uint64() > all {
-			bal, err := sdk.Native.Ong.BalanceOf(signer.Address)
-			common.CheckErr(err)
-			approveTxHash, err = sdk.Native.Ong.Approve(2500, 30000, signer, contractAddress,
-				bal)
-			common.CheckErr(err)
-			log.Infof("approveTxHash: %s", approveTxHash.ToHexString())
-			sdk.WaitForGenerateBlock(time.Second*30, 1)
-		}
+		approveOng(sdk, signer, contractAddress, maxToken)
 	} else {
-		token := oep4.NewOep4(tokenAddress, sdk)
-		all, err := sdk.NeoVM.PreExecInvokeNeoVMContract(tokenAddress, []interface{}{"allowance",
-			[]interface{}{signer.Address, contractAddress}})
-		common.CheckErr(err)
-		ball, err := all.Result.ToInteger()
-		common.CheckErr(err)
-		log.Infof("allowance: %s", utils.ToStringByPrecise(ball, tokenDecimal))
-		if ball.Cmp(maxToken) < 0 {
-			bal, err := token.BalanceOf(signer.Address)
-			common.CheckErr(err)
-			approveTxHash, err = token.Approve(signer, contractAddress, bal,
-				2500, 20000)
-			common.CheckErr(err)
-			log.Infof("approveTxHash: %s", approveTxHash.ToHexString())
-			sdk.WaitForGenerateBlock(time.Second*30, 1)
-		}
+		ontdAddr, _ := common2.AddressFromHexString(ONTD)
+		approveOep4(sdk, signer, contractAddress, maxToken, ontdAddr)
 	}
 	pre := ctx.Bool(PreFlag.Name)
 	deadline := time.Now().Unix() + 1000
