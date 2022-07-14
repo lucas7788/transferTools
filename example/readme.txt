@@ -16,7 +16,7 @@ minTokens 表示接收到的WING的最小数量
 
 
 查询lp的余额
-./main --token ONG balanceOf --address AY18Azi35MLDpCUeKeTtSmNPZH38HaBJgH
+./main --token ONG balanceOf --address AUfgnmUz6tTj7anRYSjz8kdTGHet816Vzn
 
 
 ontd 换ONG

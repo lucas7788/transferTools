@@ -16,6 +16,8 @@ import (
 )
 
 var ONTD = "2e0de81023ea6d32460244f29c57c84ce569e7b7"
+var ONT_ONG_LP = "d5b2715aee84f71d55f4378280ded4145aa50a31"
+var ONT_YFI_LP = "7c202958ba971917fe68f739e1c9a2b7126eebfd"
 
 func main() {
 	app := &cli.App{
@@ -113,7 +115,12 @@ func tokenToOntSwapOutput(ctx *cli.Context) error {
 
 	deadline := time.Now().Unix() + 1000
 	pre := ctx.Bool(PreFlag.Name)
-	approveOng(sdk, signer, contractAddress, maxTokens)
+	tokenAddr := getTokenAddress(sdk, contractAddress)
+	if tokenAddr == ontology_go_sdk.ONG_CONTRACT_ADDRESS {
+		approveOng(sdk, signer, contractAddress, maxTokens)
+	} else {
+		approveOep4(sdk, signer, contractAddress, maxTokens, tokenAddr)
+	}
 	if pre {
 		res, err := sdk.NeoVM.PreExecInvokeNeoVMContract(contractAddress,
 			[]interface{}{"tokenToOntSwapOutput",
@@ -151,7 +158,12 @@ func tokenToOntSwapInput(ctx *cli.Context) error {
 
 	deadline := time.Now().Unix() + 1000
 	pre := ctx.Bool(PreFlag.Name)
-	approveOng(sdk, signer, contractAddress, tokenSoldAmount)
+	tokenAddr := getTokenAddress(sdk, contractAddress)
+	if tokenAddr == ontology_go_sdk.ONG_CONTRACT_ADDRESS {
+		approveOng(sdk, signer, contractAddress, tokenSoldAmount)
+	} else {
+		approveOep4(sdk, signer, contractAddress, tokenSoldAmount, tokenAddr)
+	}
 	if pre {
 		res, err := sdk.NeoVM.PreExecInvokeNeoVMContract(contractAddress,
 			[]interface{}{"tokenToOntSwapInput",
@@ -178,7 +190,11 @@ func getContractAddress(ctx *cli.Context) (common2.Address, string) {
 		fmt.Println("contractAddress:", contractAddress.ToHexString())
 		return contractAddress, name
 	} else if name == "ONG" {
-		var contractAddress, _ = common2.AddressFromHexString("df9ae7ebe964e8ad7663ec8eff55ce43ffc18fa6")
+		var contractAddress, _ = common2.AddressFromHexString(ONT_ONG_LP)
+		fmt.Println("contractAddress:", contractAddress.ToHexString())
+		return contractAddress, name
+	} else if name == "YFI" {
+		var contractAddress, _ = common2.AddressFromHexString(ONT_YFI_LP)
 		fmt.Println("contractAddress:", contractAddress.ToHexString())
 		return contractAddress, name
 	} else {
@@ -478,7 +494,7 @@ func addLiquidity(ctx *cli.Context) error {
 	if signer == nil {
 		return nil
 	}
-	var contractAddress, _ = getContractAddress(ctx)
+	var contractAddress, tokenName = getContractAddress(ctx)
 	minLiquidateStr := ctx.String(MinLiquidateFlag.Name)
 	lpDecimal := getTokenDecimal(contractAddress, sdk)
 	minLiquidate := utils.ToIntByPrecise(minLiquidateStr, lpDecimal)
@@ -489,8 +505,11 @@ func addLiquidity(ctx *cli.Context) error {
 	depositOntdAmtStr := ctx.String(DepositOntdAmtFlag.Name)
 	depositOntdAmt := utils.ToIntByPrecise(depositOntdAmtStr, 9)
 
-	if tokenAddress == ontology_go_sdk.ONG_CONTRACT_ADDRESS {
+	if tokenName == "ONG" {
 		approveOng(sdk, signer, contractAddress, maxToken)
+		if tokenAddress != ontology_go_sdk.ONG_CONTRACT_ADDRESS {
+			approveOep4(sdk, signer, contractAddress, maxToken, tokenAddress)
+		}
 	} else {
 		ontdAddr, _ := common2.AddressFromHexString(ONTD)
 		approveOep4(sdk, signer, contractAddress, maxToken, ontdAddr)
