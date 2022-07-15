@@ -507,9 +507,8 @@ func addLiquidity(ctx *cli.Context) error {
 
 	if tokenName == "ONG" {
 		approveOng(sdk, signer, contractAddress, maxToken)
-		if tokenAddress != ontology_go_sdk.ONG_CONTRACT_ADDRESS {
-			approveOep4(sdk, signer, contractAddress, maxToken, tokenAddress)
-		}
+	} else if tokenName == "YFI" {
+		approveOep4(sdk, signer, contractAddress, maxToken, tokenAddress)
 	} else {
 		ontdAddr, _ := common2.AddressFromHexString(ONTD)
 		approveOep4(sdk, signer, contractAddress, maxToken, ontdAddr)
