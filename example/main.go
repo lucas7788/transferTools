@@ -108,7 +108,7 @@ func tokenToOntSwapOutput(ctx *cli.Context) error {
 	if signer == nil {
 		return nil
 	}
-	contractAddress, _ := getContractAddress(ctx)
+	contractAddress, tokenName := getContractAddress(ctx)
 	tokenDecimal := getTokenDecimal(getTokenAddress(sdk, contractAddress), sdk)
 	ontdBought := getAmount(ctx, OntdBoughtFlag.Name, 9)
 	maxTokens := getAmount(ctx, MaxTokensFlag.Name, tokenDecimal)
@@ -116,7 +116,7 @@ func tokenToOntSwapOutput(ctx *cli.Context) error {
 	deadline := time.Now().Unix() + 1000
 	pre := ctx.Bool(PreFlag.Name)
 	tokenAddr := getTokenAddress(sdk, contractAddress)
-	if tokenAddr == ontology_go_sdk.ONG_CONTRACT_ADDRESS {
+	if tokenName == "ONG" {
 		approveOng(sdk, signer, contractAddress, maxTokens)
 	} else {
 		approveOep4(sdk, signer, contractAddress, maxTokens, tokenAddr)
@@ -149,7 +149,7 @@ func tokenToOntSwapInput(ctx *cli.Context) error {
 	if signer == nil {
 		return nil
 	}
-	contractAddress, _ := getContractAddress(ctx)
+	contractAddress, tokenName := getContractAddress(ctx)
 	tokenDecimal := getTokenDecimal(getTokenAddress(sdk, contractAddress), sdk)
 	amtStr := ctx.String(TokensSoldFlag.Name) // lp的数量
 	tokenSoldAmount := utils.ToIntByPrecise(amtStr, tokenDecimal)
@@ -159,7 +159,7 @@ func tokenToOntSwapInput(ctx *cli.Context) error {
 	deadline := time.Now().Unix() + 1000
 	pre := ctx.Bool(PreFlag.Name)
 	tokenAddr := getTokenAddress(sdk, contractAddress)
-	if tokenAddr == ontology_go_sdk.ONG_CONTRACT_ADDRESS {
+	if tokenName == "ONG" {
 		approveOng(sdk, signer, contractAddress, tokenSoldAmount)
 	} else {
 		approveOep4(sdk, signer, contractAddress, tokenSoldAmount, tokenAddr)
@@ -220,7 +220,7 @@ func ontToTokenSwapOutput(ctx *cli.Context) error {
 	tokensBought := utils.ToIntByPrecise(tokensBoughtStr, tokenDecimal)
 	deadline := time.Now().Unix() + 1000
 	pre := ctx.Bool(PreFlag.Name)
-	if name == "ONG" {
+	if name == "ONG" || name == "YFI" {
 		approveOnt(sdk, signer, contractAddress, ontdAmount)
 	} else {
 		ontd, _ := common2.AddressFromHexString(ONTD)
@@ -264,7 +264,7 @@ func ontToTokenSwapInput(ctx *cli.Context) error {
 	minTokens := utils.ToIntByPrecise(minTokensStr, tokenDecimal)
 	deadline := time.Now().Unix() + 1000
 	pre := ctx.Bool(PreFlag.Name)
-	if tokenName == "ONG" {
+	if tokenName == "ONG" || tokenName == "YFI" {
 		approveOnt(sdk, signer, contractAddress, ontdAmount)
 	} else {
 		ontdAddr, _ := common2.AddressFromHexString(ONTD)
