@@ -18,6 +18,7 @@ import (
 var ONTD = "2e0de81023ea6d32460244f29c57c84ce569e7b7"
 var ONT_ONG_LP = "d5b2715aee84f71d55f4378280ded4145aa50a31"
 var ONT_YFI_LP = "7c202958ba971917fe68f739e1c9a2b7126eebfd"
+var ONTd_WING_LP = "ANeRJJWVTpL77GSYwZqZK7gCZhAZ7u6osD"
 
 func main() {
 	app := &cli.App{
@@ -186,7 +187,7 @@ func tokenToOntSwapInput(ctx *cli.Context) error {
 func getContractAddress(ctx *cli.Context) (common2.Address, string) {
 	name := ctx.String(TokenFlag.Name)
 	if name == "WING" {
-		var contractAddress, _ = common2.AddressFromBase58("ANeRJJWVTpL77GSYwZqZK7gCZhAZ7u6osD")
+		var contractAddress, _ = common2.AddressFromBase58(ONTd_WING_LP)
 		fmt.Println("contractAddress:", contractAddress.ToHexString())
 		return contractAddress, name
 	} else if name == "ONG" {
@@ -220,7 +221,7 @@ func ontToTokenSwapOutput(ctx *cli.Context) error {
 	tokensBought := utils.ToIntByPrecise(tokensBoughtStr, tokenDecimal)
 	deadline := time.Now().Unix() + 1000
 	pre := ctx.Bool(PreFlag.Name)
-	if name == "ONG" || name == "YFI" {
+	if name == "ONG" || name == "YFI" || name == "WING" {
 		approveOnt(sdk, signer, contractAddress, ontdAmount)
 	} else {
 		ontd, _ := common2.AddressFromHexString(ONTD)
@@ -264,7 +265,7 @@ func ontToTokenSwapInput(ctx *cli.Context) error {
 	minTokens := utils.ToIntByPrecise(minTokensStr, tokenDecimal)
 	deadline := time.Now().Unix() + 1000
 	pre := ctx.Bool(PreFlag.Name)
-	if tokenName == "ONG" || tokenName == "YFI" {
+	if tokenName == "ONG" || tokenName == "YFI" || tokenName == "WING" {
 		approveOnt(sdk, signer, contractAddress, ontdAmount)
 	} else {
 		ontdAddr, _ := common2.AddressFromHexString(ONTD)
@@ -377,7 +378,7 @@ func removeLiquidity(ctx *cli.Context) error {
 				deadline, signer.Address}})
 		common.CheckErr(err)
 		log.Infof("removeLiquidity txHash: %s", txHash.ToHexString())
-		sdk.WaitForGenerateBlock(time.Second*30, 2)
+		sdk.WaitForGenerateBlock(time.Second*30, 1)
 		showLp(sdk, signer.Address, contractAddress)
 	}
 	return nil
@@ -507,7 +508,7 @@ func addLiquidity(ctx *cli.Context) error {
 
 	if tokenName == "ONG" {
 		approveOng(sdk, signer, contractAddress, maxToken)
-	} else if tokenName == "YFI" {
+	} else if tokenName == "YFI" || tokenName == "WING" {
 		approveOep4(sdk, signer, contractAddress, maxToken, tokenAddress)
 	} else {
 		ontdAddr, _ := common2.AddressFromHexString(ONTD)
