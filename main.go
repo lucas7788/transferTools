@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"github.com/laizy/web3"
 	ontology_go_sdk "github.com/ontio/ontology-go-sdk"
+	common3 "github.com/ontio/ontology-go-sdk/common"
 	"github.com/ontio/ontology-go-sdk/oep4"
 	common2 "github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/core/types"
-	"github.com/ontio/ontology/smartcontract/service/native/ont"
 	"github.com/transerTools/common"
 	"github.com/transerTools/config"
 	"github.com/transerTools/utils"
@@ -47,7 +47,10 @@ func main() {
 	var decimals = getDecimals(contractAddr, sdk)
 
 	toInfos, sum, fee := parseExcel(cf, decimals)
-	checkBalance(contractAddr, sdk, admin.Address, sum, fee)
+	bo := checkBalance(contractAddr, sdk, admin.Address, sum, fee)
+	if !bo {
+		return
+	}
 	if cf.Execute {
 		transfer(contractAddr, sdk, admin, toInfos, cf)
 	}
@@ -75,22 +78,24 @@ func transfer(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk, ad
 	isONG := contractAddr == ontology_go_sdk.ONG_CONTRACT_ADDRESS
 	isONT := contractAddr == ontology_go_sdk.ONT_CONTRACT_ADDRESS
 	if isONG || isONT {
-		states := make([]*ont.State, 0)
+		states := make([]*common3.TransferStateV2, 0)
 		end := len(toInfos)
 		for k, toInfo := range toInfos {
-			state := &ont.State{
+
+			state := &common3.TransferStateV2{
 				From:  admin.Address,
 				To:    toInfo.To,
-				Value: toInfo.Amount.Uint64(),
+				Value: toInfo.Amount,
 			}
 			states = append(states, state)
 			if len(states) >= 20 || k == end-1 {
 				var err error
 				var tx *types.MutableTransaction
 				if isONG {
-					tx, err = sdk.Native.Ong.NewMultiTransferTransaction(cf.GasPrice, cf.GasLimit, states)
+					tx, err = sdk.Native.Ong.NewMultiTransferTransactionV2(cf.GasPrice, cf.GasLimit, states)
 				} else if isONT {
-					tx, err = sdk.Native.Ont.NewMultiTransferTransaction(cf.GasPrice, cf.GasLimit, states)
+					tx, err = sdk.Native.Ont.NewMultiTransferTransactionV2(cf.GasPrice,
+						cf.GasLimit, states)
 				} else {
 					panic("invalid type")
 				}
@@ -105,7 +110,7 @@ func transfer(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk, ad
 				wBackup.Write([]byte("\n"))
 				_, err = sdk.SendTransaction(tx)
 				common.CheckErr(err)
-				states = make([]*ont.State, 0)
+				states = make([]*common3.TransferStateV2, 0)
 			}
 		}
 	} else {
@@ -138,36 +143,35 @@ func transfer(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk, ad
 }
 
 func checkBalance(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk, admin common2.Address,
-	sum *big.Int, fee uint64) {
+	sum *big.Int, fee *big.Int) bool {
 
 	var decimals uint64
 	if contractAddr == ontology_go_sdk.ONG_CONTRACT_ADDRESS {
-		bal, err := sdk.Native.Ong.BalanceOf(admin)
+		bal, err := sdk.Native.Ong.BalanceOfV2(admin)
 		common.CheckErr(err)
-		if bal < sum.Uint64()+fee {
+		need := big.NewInt(0).Add(sum, fee)
+		if bal.Cmp(need) < 0 {
 			fmt.Println("ONG: Insufficient balance")
-			fmt.Println("ONG Bal:", utils.ToStringByPrecise(big.NewInt(int64(bal)), 9),
-				"expect:", utils.ToStringByPrecise(big.NewInt(int64(sum.Uint64()+fee)), 9))
-			return
+			fmt.Println("ONG Bal:", utils.ToStringByPrecise(bal, 18),
+				"expect:", utils.ToStringByPrecise(need, 18))
+			return false
 		}
-		decimals = 9
 	} else if contractAddr == ontology_go_sdk.ONT_CONTRACT_ADDRESS {
-		bal, err := sdk.Native.Ont.BalanceOf(admin)
+		bal, err := sdk.Native.Ont.BalanceOfV2(admin)
 		common.CheckErr(err)
-		if bal < sum.Uint64() {
+		if bal.Cmp(sum) < 0 {
 			fmt.Println("ONT: Insufficient balance")
 			fmt.Println("ONT Bal:", bal, "Sum:", sum)
-			return
+			return false
 		}
-		bal, err = sdk.Native.Ong.BalanceOf(admin)
+		ongBal, err := sdk.Native.Ong.BalanceOfV2(admin)
 		common.CheckErr(err)
-		if bal < fee {
+		if ongBal.Cmp(fee) < 0 {
 			fmt.Println("ONG: Insufficient balance")
-			fmt.Println("ONG Bal:", utils.ToStringByPrecise(big.NewInt(int64(bal)), 9), "Fee:",
-				utils.ToStringByPrecise(big.NewInt(int64(fee)), 9))
-			return
+			fmt.Println("ONG Bal:", utils.ToStringByPrecise(ongBal, 18), "Fee:",
+				utils.ToStringByPrecise(fee, 18))
+			return false
 		}
-		decimals = 0
 	} else {
 		oep4Token := oep4.NewOep4(contractAddr, sdk)
 		bal, err := oep4Token.BalanceOf(admin)
@@ -178,24 +182,25 @@ func checkBalance(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk
 		if bal.Cmp(sum) < 0 {
 			fmt.Println("OEP4: Insufficient balance")
 			fmt.Println("oep4 Bal:", bal.String(), "sum:", utils.ToStringByPrecise(sum, decimals))
-			return
+			return false
 		}
-		ongBal, err := sdk.Native.Ong.BalanceOf(admin)
+		ongBal, err := sdk.Native.Ong.BalanceOfV2(admin)
 		common.CheckErr(err)
-		if ongBal < fee {
+		if ongBal.Cmp(fee) < 0 {
 			fmt.Println("ONG: Insufficient balance")
 			fmt.Println("ongBal:", ongBal, "fee:", fee)
-			return
+			return false
 		}
 	}
+	return true
 }
 
 func getDecimals(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk) uint64 {
 	var decimals uint64
 	if contractAddr == ontology_go_sdk.ONG_CONTRACT_ADDRESS {
-		decimals = 9
+		decimals = 18
 	} else if contractAddr == ontology_go_sdk.ONT_CONTRACT_ADDRESS {
-		decimals = 0
+		decimals = 9
 	} else {
 		oep4Token := oep4.NewOep4(contractAddr, sdk)
 		dec, err := oep4Token.Decimals()
@@ -205,11 +210,11 @@ func getDecimals(contractAddr common2.Address, sdk *ontology_go_sdk.OntologySdk)
 	return decimals
 }
 
-func parseExcel(cf *config.Config, decimals uint64) ([]*config.ToInfo, *big.Int, uint64) {
+func parseExcel(cf *config.Config, decimals uint64) ([]*config.ToInfo, *big.Int, *big.Int) {
 	f, err := excelize.OpenFile(cf.ExcelFile)
 	common.CheckErr(err)
 	// 获取 Sheet1 上所有单元格
-	rows, err := f.GetRows("SheetJS")
+	rows, err := f.GetRows("Sheet1")
 	common.CheckErr(err)
 	var toInfos = make([]*config.ToInfo, 0)
 	var isBase58 bool
@@ -247,14 +252,14 @@ func parseExcel(cf *config.Config, decimals uint64) ([]*config.ToInfo, *big.Int,
 		}
 	}
 
-	var fee uint64
+	var fee *big.Int
 	if cf.GetContractAddress() == ontology_go_sdk.ONG_CONTRACT_ADDRESS || cf.GetContractAddress() == ontology_go_sdk.ONT_CONTRACT_ADDRESS {
-		fee = uint64(len(toInfos)/20+1) * 120000000
+		fee = big.NewInt(0).Mul(big.NewInt(int64(len(toInfos)/20+1)), big.NewInt(0).SetUint64(120000000000000000))
 	} else {
-		fee = uint64(len(toInfos)/20+1) * 550000000
+		fee = big.NewInt(0).Mul(big.NewInt(int64(len(toInfos)/20+1)), big.NewInt(0).SetUint64(550000000000000000))
 	}
 	if !cf.Execute {
-		fmt.Println("estimate tx fee is: ", float64(fee)/1000000000)
+		fmt.Println("estimate tx fee is: ", utils.ToStringByPrecise(fee, 18))
 	}
 	return toInfos, sum, fee
 }
